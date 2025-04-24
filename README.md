@@ -12,5 +12,6 @@ live at: https://episphere.github.io/statsjs
 ### Loading the PCA User Interface:
 `sdk.pca.loadUI()`
 
+---
 
 Further documentation can be found on the [wiki](https://github.com/lorenasandoval88/statsJs/wiki).
