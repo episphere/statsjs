@@ -3,11 +3,11 @@
 
 Multivariate statistical visualization (clustering, correlation, heatmaps, etc) in JavaScript. 
 
-live at: https://lorenasandoval88.github.io/statsjs
+live at: https://episphere.github.io/statsjs
 
 ### Loading statsJs PCA User Interface:
 
-`sdk = await import("https://lorenasandoval88.github.io/statsJs/sdk.js")`
+`sdk = await import("https://episphere.github.io/statsJs/sdk.js")`
 
 
 
