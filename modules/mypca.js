@@ -1,139 +1,107 @@
-const { PCA} = await import("https://esm.sh/ml-pca");
-import * as d3 from "https://cdn.skypack.dev/d3@7"
-import { default as d3tip} from 'https://esm.sh/d3-tip';
+// const { PCA} = await import("https://esm.sh/ml-pca");
+// const dataset = (await import("https://esm.sh/ml-dataset-iris"))
+// import { default as imports.npm_pcajs } from 'https://cdn.jsdelivr.net/npm/pca-js@1.0.1/+esm'
+// const Plotly = (await import('https://cdn.jsdelivr.net/npm/imports.Plotly.js-dist@3.0.1/+esm')).default
+// const localForage = (await import('https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js'))
 
-const modules = {}
+// // import {PCA} from 'https://cdn.jsdelivr.net/npm/ml-pca@4.1.1/+esm'
+// import * as imports.d3 from "https://cdn.skypack.dev/imports.d3@7"
+// import { default as imports.d3tip} from 'https://esm.sh/imports.d3-tip';
+
+// TODO: limit textbox rows to 500
+import {
+  csvToJson,
+  convertStrToNumber,
+  removeNonNumbers,
+  removeNumbers,
+  removeNonNumberValues,
+  removeNumberValues,
+  asDataFrame,
+  scale,
+  createTableFromCSV,
+  textBox
+} from '../otherFunctions.js'
+import {
+  npm_pca, npm_pcajs, Plotly, d3, d3tip, dataset, localForage 
+} from '../imports.js'
+
+
+// Example iris dataset:
+const irisLabels = ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
+const irisData = dataset.getDataset()
+const irisDataNumbersOnly = irisData.map(x => (removeNonNumbers(x)))
+const irisDataNamesOnly = irisData.map(x => (removeNumbers(x)))
+
+const ir = irisData.map((row) =>
+   row.reduce((acc, curr, index) => {
+    acc[irisLabels[index]] = curr;
+    return acc;
+  }, {})
+ )
+console.log("irisData", ir)
+
+
+// Declare global data variable 
+const data = {}
+data.iris = ir
+// {
+  // data: irisData,
+  // colNames: irisLabels,
+  // categories: irisDataNamesOnly,
+  // dataNumbersOnly: irisDataNumbersOnly
+// }
+data.file = "none loaded"
+console.log("data", data)
+
+const pca = {}
+
+pca.data = data
+console.log("pca",pca)
 // PCA (scale, asDataframe, plotPCA)/////////////////////////////////////////////////////////
-
-function asDataFrame(value) {
-  // check if value is array of objects (aoo)
-  if (value === undefined || value === null)
-    throw new Error("No data passed to function.");
-  if (
-    !Array.isArray(value) ||
-    typeof value[0] !== "object" ||
-    value[0] === null
-  ) {
-    throw new Error("First argument must be an array of objects");
+function formatIrisData(data, headers) {
+  const result = [];
+  result.headers = headers;
+  for (let i = 0; i < data.length; i++) {
+    const obj = {};
+    const currentLine = data[i]
+    for (let j = 0; j < headers.length; j++) {
+      obj[headers[j]] = convertStrToNumber(currentLine[j])
+    }
+    result.push(obj);
   }
-
-  const aoo = value;
-  // columns: if parsed using d3, the aoo will already have a columns prop
-  // -> create it otherwise
-  if (!value.columns) {
-    const set = new Set();
-    for (const row of aoo) {
-      for (const key of Object.keys(row)) set.add(key);
-    }
-    aoo.columns = [...set];
-  }
-  // create getters and setters for columns
-  aoo.columns.forEach((column) => {
-    if (!Object.getOwnPropertyDescriptor(aoo, column)) {
-      Object.defineProperty(aoo, column, {
-        get: function () {
-          return this.map((row) => row[column]);
-        },
-        set: function (array) {
-          if (!array) {
-            throw new Error(`No data passed to set ${column} column.`);
-          }
-          if (array.length !== this.length) {
-            throw new Error(
-              `Data length (${array.length}) different from column ${column} length (${this.length}).`
-            );
-          }
-          this.forEach((row, index) => (row[column] = array[index]));
-        }
-      });
-    }
-  });
-  return aoo;
+  return result;
 }
 
-modules.scale = async function (value) {
-  const clone = JSON.parse(JSON.stringify(value));
-  const df = asDataFrame(clone);
-  df.columns.forEach((column) => {
-    const values = df[column];
-    const mean = d3.mean(values);
-    const sd = d3.deviation(values);
-    df[column] = values.map((v) => {
-      if (v !== null && v !== undefined) {
-        return (v - mean) / sd;
-      }
-      return v;
-    });
-  });
-  return df;
-}
+pca.scores = async function (data) {
+  console.log("mypca.js pca.scores data", data)
 
-function removeNonNumberValues(arr) {
-  return arr.map(obj => {
-    const newObj = {};
-    for (const key in obj) {
-      if (typeof obj[key] === 'number') {
-        newObj[key] = obj[key];
-      }
-    }
-    return newObj;
-  });
-}
+  const numbersOnlyObjs = removeNonNumberValues(data)
+  // console.log("numbersOnlyObjs", numbersOnlyObjs[0])
+  const numbersOnlyArrs = (numbersOnlyObjs.map(Object.values))
+  //  console.log('numbersOnlyArrs',numbersOnlyArrs[0])  
 
-function removeNonNumbers(arr) {
-  return arr.filter(element => typeof element === 'number');
-}
+  const categories = (removeNumberValues(data)).map(x => Object.values(x)).flat()
+  //  console.log('categories',categories)  
 
-function removeNumbers(arr) {
-  return arr.filter(element => typeof element !== 'number');
-}
+  // const headers = Object.keys(data[0]).filter(key => !isNaN(data[0][key]))
+  // // console.log('headers',headers)
+  let scaledObjs = (await scale(numbersOnlyObjs))
+  let scaledArr = scaledObjs.map(Object.values)
+  // console.log('scaledArr',scaledArr[0])  
 
-modules.calculatePca = async function (data) {
-  console.log("data",data)
-  console.log("removeNonNumberValues(data)", removeNonNumberValues(data))
-  const dataNumbersOnly = removeNonNumberValues(data)
-  const matrix = (data.map(Object.values))
-  const categories = matrix.map(x => (removeNumbers(x))).flat()
-  console.log('categories',categories)  
-  const headers = Object.keys(data[0]).filter(key => !isNaN(data[0][key]))
-  const headers2 = matrix.headers
-
-  const dt = (modules.scale(data.map(obj => Object.fromEntries(Object.entries(obj)
-    .filter(([key]) => headers.includes(key)))))).map(Object.values)
-  const dt22 = matrix.map(x => (removeNonNumbers(x)))
-  const dt3 = modules.scale(dataNumbersOnly)
-  // todo: add headers to dt
-  // console.log('(modules.scale(data.map(obj => Object.fromEntries(Object.entries(obj).filter(([key])=> idx.includes(key))))))',(modules.scale(data.map(obj => Object.fromEntries(Object.entries(obj).filter(([key])=> idx.includes(key)))))))
-  dt['headers'] = headers
-  dt22['headers'] = headers2
-
-  console.log('dt',dt)  
-  console.log('dt22',dt22)  
-  console.log('dt3',dt3)  
-
-  const data2 = data.map(({
-    species,
-    id,
-    ...rest
-  }) => rest)
-
-  const pca = new PCA(dt, {
-    center: true,
-    scale: true
-  })
-  const pca2 = new PCA(dt22, {
+  const pca = new npm_pca(scaledArr, {
     center: true,
     scale: true
   })
 
 
-  const scores = pca2.predict((modules.scale(data2)).map(Object.values))
+  const scores = pca.predict(scaledArr)
     .toJSON()
     .map((row, rowIndex) => {
       const columns = Object.keys(data[rowIndex]);
       const rowObj = {
         group: data[rowIndex]['species'],
-        id: data[rowIndex]['id']
+        name: "id_" + rowIndex //data[rowIndex]['id']
       };
       columns.forEach((column, colIndex) => {
         rowObj[`PC${colIndex + 1}`] = row[colIndex];
@@ -143,30 +111,61 @@ modules.calculatePca = async function (data) {
       PC1,
       PC2,
       group,
-      id
+      name
     }) => ({
       PC1,
       PC2,
       group,
-      id
+      name
     }))
-  const groups = [...new Set(scores.map(d => d.group))]
-  //  console.log('scores',scores)  
+  // console.log("mypca.js pca.scoresscores", scores)
 
   return scores
 }
 
+function selectGroup(ctx, group, maxOpacity) {
+  const groupElements = d3.selectAll(".points")
+    .filter(d => d.group !== group);
 
-modules.plotPCA = function (scores, groups) {
+  const activeGroup = d3.selectAll(".keyRects")
+    .filter(d => d === group);
+
+  const otherElements = d3.selectAll(".points")
+    .filter(d => d.group === group);
+
+  const otherGroups = d3.selectAll(".keyRects")
+    .filter(d => d !== group);
+
+  groupElements.transition().attr("opacity", 0.1);
+  otherGroups.transition().attr("opacity", 0.1);
+
+  otherElements.transition().attr("opacity", maxOpacity);
+  activeGroup.transition().attr("opacity", maxOpacity);
+}
+
+
+
+pca.plotPCA = async function (scores, div) {
+  //TODO calcscores
+console.log("scores1",scores)
+  if (scores === undefined) {
+    console.log("pca.Plot scores not provided, using Iris data")
+    const scores = pca.data.iris
+    console.log("scores2",scores)
+    return scores
+  }
+  console.log("pca.Plot scores not provided, using Iris data")
+
+  const groups = [...new Set(scores.map(d => d.group))] //.values()//.sort())
   const color = d3.scaleOrdinal(["#8C236A", "#4477AA", "#AA7744", "#117777", "#DD7788", "#77AADD", "#777711", "#AA4488", "#44AA77", "#AA4455"])
     .domain(groups)
 
-  const width = 300
+  const width = 400
   const height = width / 1.5
   const fontFamily = 'monospace'
   const maxOpacity = 0.7
   const margin = ({
-    top: 20,
+    top: 25,
     right: 90,
     bottom: 45,
     left: 45
@@ -208,7 +207,17 @@ modules.plotPCA = function (scores, groups) {
       .text("PC2"))
 
   const svg = d3.create("svg")
+  svg.id = "svgid"
   // const g = d3.select(DOM.svg(width, height));
+
+  // title
+  svg.append("text")
+    .attr("x", width / 2 - margin.left)
+    .attr("y", margin.top / 2)
+    .attr("text-anchor", "middle")
+    .style("font-size", "16px")
+    .style("font-family", "sans-serif")
+    .text("PCA Plot");
 
   const g = svg
     .attr('width', width)
@@ -236,14 +245,15 @@ modules.plotPCA = function (scores, groups) {
   const gPoints = g.append("g").attr("class", "gPoints");
 
   const tooltip = d3tip()
-    .style('border', 'solid 3px black')
+    .style('border', 'solid 2px navy')
     .style('background-color', 'white')
-    .style('border-radius', '11px')
-    .style('float', 'left')
+    .style('border-radius', '7px')
+    // .style('float', 'left')
     .style('font-family', fontFamily)
+    .style('width', '9%')
     .html((event, d) => `
-          <div style='float: right'>
-            name:${d.Name} <br/>
+          <div style='text-align: center'>
+            name:${d.name} <br/>
             pc1:${d.PC1.toFixed(2)} <br/>
             pc2:${d.PC2.toFixed(2)}
           </div>`)
@@ -269,10 +279,10 @@ modules.plotPCA = function (scores, groups) {
   const key = g.append("g")
     .selectAll("rect")
     .data(groups)
-  // console.log("key",key)
+  //  //console.log("key",key)
   key.enter().append("rect")
     .attr("class", "keyRects")
-    .attr("x", width - margin.left - 70)
+    .attr("x", width - margin.left - 50)
     .attr("y", (d, i) => i * 20)
     .attr("width", 12)
     .attr("height", 12)
@@ -282,7 +292,7 @@ modules.plotPCA = function (scores, groups) {
     })
 
   key.enter().append("text")
-    .attr("x", d => width - margin.left - 50)
+    .attr("x", d => width - margin.left - 30)
     .attr("y", (d, i) => i * 20)
     .attr("dy", "0.7em")
     .text(d => `${d}`)
@@ -290,29 +300,339 @@ modules.plotPCA = function (scores, groups) {
     .on("click", (event, d) => {
       return selectGroup(this, d, maxOpacity)
     });
-  // x and y-axis labels
-  // svg.append("text")
-  //     .attr("class", "x label")
-  //     .attr("text-anchor", "end")
-  //     .attr("x", width/2)
-  //     .attr("y", height - 6)
-  //     .text("PC1");
-  // svg.append("text")
-  //     .attr("class", "y label")
-  //     .attr("text-anchor", "end")
-  //     .attr("x", -height/2)
-  //     .attr("y", 0)
-  //     .attr("dy", "0.9em")
-  //     .attr("transform", "rotate(-90)")
-  //     .text("PC2");
-  const pcaDiv = document.createElement("div")
-  pcaDiv.id = 'pcaDiv'
-  document.body.appendChild(pcaDiv);
-  pcaDiv.append(document.createElement('br'));
-  document.getElementById('pcaDiv').appendChild(svg.node());
+
+    
+  // Here we add the svg to the plot div
+  // Check if the div was provided in the function call
+    if (document.getElementById(div)) {
+    console.log(`pcaPlot div provided in function parameters.`);
+    div.appendChild(svg.node())
+
+    } else if (!document.getElementById("childDiv")) {
+      console.log(`pcaPlot div  NOT provided in function parameters, creating div....`);
+      const parentDiv = document.createElement("div")
+      parentDiv.id = "parentDiv"
+      parentDiv.style.width = 400 + 'px' //"auto";
+      document.body.appendChild(parentDiv)
+
+      const childDiv = document.createElement("div")
+      childDiv.id = "childDiv"
+      childDiv.appendChild(svg.node())
+      parentDiv.appendChild(childDiv)
+
+      // div.replaceWith(svg.node());
+    } else if (document.getElementById("childDiv")) {
+      console.log(`div for pcaPlot found, updating....`);
+      const div  = document.getElementById("childDiv")
+      document.getElementById("parentDiv").removeChild(div)
+
+      const childDiv = document.createElement("div")
+      childDiv.id = "childDiv"
+      document.getElementById("parentDiv").appendChild(childDiv)
+      childDiv.appendChild(svg.node())
+    }
+
+
   return svg.node();
 }
 
-export {
-  modules
+// load file and plot PCA
+pca.loadUI = async (divId) => {
+
+  let loadUI = document.getElementById(divId);
+  if (document.getElementById(divId) ) {
+    // The div with the specified ID exists, updating...
+    console.log("div ID provided in pca.loadUI(), loading div");
+    // loadUI.id = 'loadUI'
+
+  } else {
+    console.log("pca.loadUI() div not provide in parameters. creating div...");
+    // create the div element here
+    loadUI = document.createElement("div")
+    loadUI.id = 'loadUI'
+    document.body.appendChild(loadUI);
+  }
+
+  // iris data button 
+  const irisDataButton = document.createElement('button')
+  irisDataButton.id = 'irisDataButton'
+  irisDataButton.textContent = 'Load Iris Data'
+  loadUI.appendChild(irisDataButton);
+  
+  // file input Button
+  const fileInput = document.createElement('input')
+  fileInput.id = 'fileInput'
+  fileInput.setAttribute('type', 'file')
+  loadUI.appendChild(fileInput);
+  loadUI.append(document.createElement('br'));
+  loadUI.append(document.createElement('br'));
+
+
+  // create textbox div
+  const textBoxDiv = document.createElement("div")
+  textBoxDiv.id = 'textBoxDiv'
+  loadUI.appendChild(textBoxDiv);
+
+  // event listener for load file data buttons
+  fileInput.addEventListener('change', (event) => {
+    console.log("fileInput event")
+    const files = event.target.files;
+    for (const file of files) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const file = event.target.files[0]
+        if (file) {
+          const reader = new FileReader();
+
+          reader.onload = async function (e) {
+            const csv = e.target.result;
+            // console.log("csv", csv)
+            const json = await csvToJson(csv)
+            // console.log("json", json)
+            const matrix = (json.map(Object.values))
+            console.log("main json", json)
+            // //console.log('main matrix', matrix)
+            matrix['headers'] = json['headers']
+            pca.data.file = json
+            console.log("pca.data", pca.data)
+
+            // //console.log('main load PCA csv', csv)
+            const scores = await pca.scores(json)
+            console.log("main scores", scores)
+
+            // plot function
+             pca.plotPCA(scores )
+            // csv file textbox
+            textBox(csv, textBoxDiv)
+
+          };
+          reader.onerror = function () {
+            displayError('Error reading the file.');
+          };
+          reader.readAsText(file);
+        }
+      };
+      reader.readAsText(file); // Read as text, other options are readAsArrayBuffer, readAsDataURL
+    }
+  });
+
+  // event listener for load iris data button
+  document.getElementById('irisDataButton').addEventListener('click', async function () {
+
+    console.log("load iris data button event")
+
+    const data = formatIrisData(irisData, irisLabels)
+    const scores = await pca.scores(data)
+    const groups = [...new Set(scores.map(d => d.group))] //.values()//.sort())
+
+    // plot function
+    pca.plotPCA(scores)
+
+    //convert iris data to csv
+    const irisCsv = irisData.map(row => row.map(item => (typeof item === 'string' && item.indexOf(',') >= 0) ? `"${item}"`: String(item)).join(',')).join('\n');
+
+    // textbox div
+    textBox(irisCsv, textBoxDiv)
+  });
+
 }
+
+export {
+  pca
+}
+
+async function pcaPlotlyPlot4(data) {
+  //console.log("data", data)
+  const deviationMatrix = npm_pcajs.computeDeviationMatrix(data);
+  const eigenvectors = npm_pcajs.getEigenVectors(deviationMatrix);
+  // const eigenvalues = npm_pcajs.computeEigenvalues(deviationMatrix);
+  //console.log("eigenvectors", eigenvectors)
+
+  const adjustedMatrix = npm_pcajs.computeAdjustedData(data, eigenvectors[0]);
+  //console.log("adjustedMatrix------------------", adjustedMatrix)
+  // Extract the first two principal components
+  const pc1 = adjustedMatrix.map(row => row[0]);
+  const pc2 = adjustedMatrix.map(row => row[1]);
+
+  // Create a scatter plot using Plotly
+  const trace = {
+    x: pc1,
+    y: pc2,
+    mode: 'markers',
+    type: 'scatter'
+  };
+
+  const layout = {
+    title: 'PCA Results',
+    xaxis: {
+      title: 'Principal Component 1'
+    },
+    yaxis: {
+      title: 'Principal Component 2'
+    }
+  };
+  // Create the plot div
+  const pca_plot4 = document.createElement("div")
+  pca_plot4.id = 'pca_plot4'
+  // pca_plot4.style.width = 400 //"auto";
+  pca_plot4.style.height = 400 //"auto";
+
+  document.body.appendChild(pca_plot4);
+  Plotly.newPlot('pca-pca_plot4', [trace], layout);
+}
+
+// Assume 'data' is your dataset and 'labels' are the corresponding labels
+// 'data' should be a 2D array where each row represents a iris and each column represents a feature
+// 'labels' should be an array with the same length as the number of rows in 'data'
+async function pcaPlotly3DPlot(data, labels) {
+
+  var eigenvectors = imports.npm_pcajs.getEigenVectors(data);
+  // var first = imports.npm_pcajs.computePercentageExplained(vectors,vectors[0])
+  var topTwo = imports.npm_pcajs.computePercentageExplained(eigenvectors, eigenvectors[0], eigenvectors[1])
+  // // const explainedVariance = imports.npm_pcajs.getExplainedVariance();
+
+  // //console.log("vectors",vectors)
+  // //console.log("first",first)
+  //console.log("topTwo", topTwo)
+  //console.log("eigenvectors", eigenvectors)
+  //console.log("eigenvectors.map(row => row[0])", eigenvectors[0].vector)
+  //console.log("eigenvectors.map(row => row[1])", eigenvectors[1].vector)
+
+  const numComponents = 2
+  const pcScores = data.map(row => {
+    const transformedRow = [];
+    for (let i = 0; i < numComponents; i++) {
+      transformedRow.push(row.reduce((sum, val, idx) => sum + val * eigenvectors[idx][i], 0));
+    }
+    return transformedRow;
+  });
+  //console.log("pcScores", pcScores)
+  const pc1 = eigenvectors[0].vector //eigenvectors.map(row => row[0]);
+  const pc2 = eigenvectors[1].vector //eigenvectors.map(row => row[1]);
+  // For 3D plot
+  const pc3 = eigenvectors[2].vector //pcScores.map(row => row[2]);
+
+  const trace3d = {
+    x: pc1,
+    y: pc2,
+    z: pc3,
+    mode: 'markers',
+    type: 'scatter3d',
+    marker: {
+      size: 4,
+      opacity: 0.8
+    }
+  };
+
+  const layout3d = {
+    margin: {
+      l: 20,
+      r: 0,
+      b: 50,
+      t: 110
+    },
+    title: '3D PCA Plot',
+    scene: {
+      xaxis: {
+        title: 'Principal Component 1'
+      },
+      yaxis: {
+        title: 'Principal Component 2'
+      },
+      zaxis: {
+        title: 'Principal Component 3'
+      }
+    }
+  };
+  // Create the plot div
+  const pca_plot2 = document.createElement("div")
+  pca_plot2.id = 'pca_plot2'
+  pca_plot2.style.width = 400 //"auto";
+  pca_plot2.style.height = 400 //"auto";
+  document.body.appendChild(pca_plot2);
+  // pca_plot2.append(document.createElement('br'));
+  //console.log("imports.Plotly", imports.Plotly)
+
+  await imports.Plotly.newPlot('pca_plot2', [trace3d], layout3d);
+}
+
+async function pcaPlotly2DPlot(data, labels) {
+  var eigenvectors = imports.npm_pcajs.getEigenVectors(data);
+  // var first = imports.npm_pcajs.computePercentageExplained(vectors,vectors[0])
+  var topTwo = imports.npm_pcajs.computePercentageExplained(eigenvectors, eigenvectors[0], eigenvectors[1])
+  // // const explainedVariance = imports.npm_pcajs.getExplainedVariance();
+
+  // //console.log("vectors",vectors)
+  // //console.log("first",first)
+  //console.log("topTwo", topTwo)
+  //console.log("eigenvectors", eigenvectors)
+  //console.log("eigenvectors.map(row => row[0])", eigenvectors[0].vector)
+  //console.log("eigenvectors.map(row => row[1])", eigenvectors[1].vector)
+
+  const numComponents = 2
+  const pcScores = data.map(row => {
+    const transformedRow = [];
+    for (let i = 0; i < numComponents; i++) {
+      transformedRow.push(row.reduce((sum, val, idx) => sum + val * eigenvectors[idx][i], 0));
+    }
+    return transformedRow;
+  });
+  //console.log("pcScores", pcScores)
+  const pc1 = eigenvectors[0].vector //eigenvectors.map(row => row[0]);
+  const pc2 = eigenvectors[1].vector //eigenvectors.map(row => row[1]);
+  // For 3D plot
+  // const pc3 = eigenvectors[2].vector//pcScores.map(row => row[2]);
+
+  const trace3d = {
+    x: pc1,
+    y: pc2,
+    // z: pc3,
+    mode: 'markers',
+    type: 'scatter',
+    marker: {
+      size: 4,
+      opacity: 0.8
+    }
+  };
+
+  const layout2d = {
+    // margin: {
+    //   l: 150,
+    //   r: 70,
+    //   b: 150,
+    //   t: 50
+    // },
+    title: {
+      text: '3D PCA Plot',
+      x: 0.5,
+      xanchor: 'center'
+    },
+    scene: {
+      xaxis: {
+        title: 'PC1',
+        titlefont: {
+          color: 'red',
+          family: 'Arial, Open Sans',
+          size: 12
+        }
+      },
+      yaxis: {
+        title: 'PC2'
+      },
+      // zaxis: { title: 'Principal Component 3' }
+    }
+  };
+  // Create the plot div
+  const pca_plot3 = document.createElement("div")
+  pca_plot3.id = 'pca_plot3'
+  // pca_plot3.style.width = 400//"auto";
+  // pca_plot3.style.height = 400//"auto";
+
+  document.body.appendChild(pca_plot3);
+  // pca_plot2.append(document.createElement('br'));
+  await imports.Plotly.newPlot('pca_plot3', [trace3d], layout2d);
+}
+// pcaPlotlyPlot4(data)
+// await pcaPlotly3DPlot(pcaData.irisData.irisNumbersOnly, irisLabels);
+// await pcaPlotly2DPlot(pcaData.irisData.irisNumbersOnly, irisLabels);
+// await pcaPlotly2DPlot(data, labels);
